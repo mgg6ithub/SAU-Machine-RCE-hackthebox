@@ -27,13 +27,11 @@ python sau_rce.py -u <sau_machine_ip> -y <your_ip> -p <port_for_listener>
 ## EXAMPLES
 
 
-
-![example1.png](C:\Users\mikel\Desktop\SAU-HTB-RCE\images\example1.png)
-
+[[example1.png](images\example1.png)
 
 
-![example2.png](C:\Users\mikel\Desktop\SAU-HTB-RCE\images\example2.png)
 
+![example2.png](images\example2.png)
 
 
 ---
@@ -62,7 +60,7 @@ Install the missing modules with pip in your python enviroment and try it again.
 
 Another reason could be that it's taking too much time to make the request, so you would need to increase this parameter to `10`.
 
-![example3.png](C:\Users\mikel\Desktop\SAU-HTB-RCE\images\example3.png)
+![example3.png](images\example3.png)
 
 
 
