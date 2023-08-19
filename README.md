@@ -1,6 +1,4 @@
-# SAU Machine Hackthebox
-
-## Remote Code Execution (RCE)
+# SAU Machine Hackthebox - Remote Code Execution (RCE)
 
 Simple sau machine RCE to gain a shell.
 
